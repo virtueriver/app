@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32 WebSocket 데이터 표시</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        .page {
+            display: none;
+        }
+        #configPage {
+            display: block;
+        }
+        form, #savedServers, #dataContainer, #rawDataContainer {
+            background-color: #f4f4f4;
+            padding: 20px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        input[type="text"], input[type="number"] {
+            width: calc(100% - 16px);
+            padding: 8px;
+            margin-bottom: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            padding: 10px 15px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        #savedServers ul {
+            list-style-type: none;
+            padding: 0;
+        }
+        #savedServers li {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            padding: 10px;
+            background-color: #fff;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .server-info {
+            flex-grow: 1;
+        }
+        .server-buttons {
+            display: flex;
+        }
+        .server-buttons button {
+            margin-left: 5px;
+        }
+        .connect-button {
+            font-size: 1.2em;
+            padding: 12px 20px;
+        }
+        #dataTable {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
+        }
+        #dataTable th, #dataTable td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        #dataTable th {
+            background-color: #f2f2f2;
+        }
+        #backButton, #chartButton, #toggleRawDataBtn {
+            display: block;
+            margin: 20px auto;
+        }
+        #rawData {
+            width: 100%;
+            height: 200px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            overflow-wrap: break-word;
+        }
+        .data-card {
+            background-color: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+        .data-card h3 {
+            margin-top: 0;
+        }
+        .data-card p {
+            margin: 5px 0;
+        }
+        @media (max-width: 768px) {
+            #dataTable {
+                display: none;
+            }
+            .data-cards {
+                display: block;
+            }
+        }
+        @media (min-width: 769px) {
+            #dataTable {
+                display: table;
+            }
+            .data-cards {
+                display: none;
+            }
+        }
+        #rawDataContainer {
+            display: none;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div id="configPage" class="page">
+        <h1>WebSocket 서버 설정</h1>
+        
+        <div id="savedServers">
+            <h2>저장된 서버 목록</h2>
+            <ul id="serverList"></ul>
+        </div>
+
+        <form id="websocketForm">
+            <h2>새 서버 추가</h2>
+            <label for="serverName">서버 이름:</label>
+            <input type="text" id="serverName" required placeholder="예: 내 서버">
+            
+            <label for="serverAddress">서버 IP 주소:</label>
+            <input type="text" id="serverAddress" required placeholder="예: 192.168.0.27">
+            
+            <label for="serverPort">포트 번호:</label>
+            <input type="number" id="serverPort" required placeholder="예: 80">
+            
+            <button type="submit">저장</button>
+        </form>
+    </div>
+
+    <div id="dataPage" class="page">
+        <h1>실시간 ESP32 데이터</h1>
+        <div id="dataContainer">
+            <table id="dataTable">
+                <thead>
+                    <tr>
+                        <th>데이터 이름</th>
+                        <th>현재값</th>
+                        <th>평균값</th>
+                        <th>최소값</th>
+                        <th>최대값</th>
+                        <th>단위</th>
+                        <th>측정 시간</th>
+                    </tr>
+                </thead>
+                <tbody id="dataTableBody">
+                    <!-- 데이터 행이 여기에 동적으로 추가됩니다 -->
+                </tbody>
+            </table>
+            <div class="data-cards" id="dataCards">
+                <!-- 데이터 카드가 여기에 동적으로 추가됩니다 -->
+            </div>
+        </div>
+        <button id="toggleRawDataBtn">원본 JSON 데이터 표시</button>
+        <div id="rawDataContainer">
+            <h2>원본 JSON 데이터</h2>
+            <textarea id="rawData" readonly></textarea>
+        </div>
+        <button id="chartButton">차트 보기</button>
+        <button id="backButton">첫 페이지로 돌아가기</button>
+    </div>
+
+    <script>
+        let websocket;
+        let savedServers = JSON.parse(localStorage.getItem('savedServers')) || [];
+        let lastUpdateTime = {};
+
+        function showPage(pageId) {
+            document.querySelectorAll('.page').forEach(page => page.style.display = 'none');
+            document.getElementById(pageId).style.display = 'block';
+        }
+
+        function updateServerList() {
+            const serverList = document.getElementById('serverList');
+            serverList.innerHTML = '';
+            savedServers.forEach((server, index) => {
+                const li = document.createElement('li');
+                li.innerHTML = `
+                    <span class="server-info">${server.name} (${server.address}:${server.port})</span>
+                    <div class="server-buttons">
+                        <button class="connect-button" onclick="connectToServer(${index})">접속</button>
+                        <button onclick="confirmDelete(${index})">삭제</button>
+                    </div>
+                `;
+                serverList.appendChild(li);
+            });
+        }
+
+        function saveServer(name, address, port) {
+            savedServers.push({ name, address, port });
+            localStorage.setItem('savedServers', JSON.stringify(savedServers));
+            updateServerList();
+        }
+
+        function confirmDelete(index) {
+            if (confirm("정말로 이 서버 설정을 삭제하시겠습니까?")) {
+                deleteServer(index);
+            }
+        }
+
+        function deleteServer(index) {
+            savedServers.splice(index, 1);
+            localStorage.setItem('savedServers', JSON.stringify(savedServers));
+            updateServerList();
+        }
+
+        function connectToServer(index) {
+            const server = savedServers[index];
+            connect(server.address, server.port);
+        }
+
+        function connect(address, port) {
+            if (websocket) {
+                websocket.close();
+            }
+
+            const url = `ws://${address}:${port}/ws`;
+            websocket = new WebSocket(url);
+
+            websocket.onopen = function() {
+                showPage('dataPage');
+            };
+
+            websocket.onclose = function() {
+                showPage('configPage');
+            };
+
+            websocket.onerror = function(error) {
+                console.error('WebSocket 오류:', error);
+                alert('연결 중 오류가 발생했습니다.');
+            };
+
+            websocket.onmessage = function(event) {
+                console.log('서버로부터 메시지 수신:', event.data);
+                const data = JSON.parse(event.data);
+                updateDataTable(data);
+                updateRawData(event.data);
+            };
+        }
+
+        function updateDataTable(data) {
+            const tableBody = document.getElementById('dataTableBody');
+            const dataCards = document.getElementById('dataCards');
+            tableBody.innerHTML = ''; // 테이블 초기화
+            dataCards.innerHTML = ''; // 카드 초기화
+
+            for (const [key, value] of Object.entries(data)) {
+                if (key.startsWith('value')) {
+                    const parsedValue = JSON.parse(value);
+                    
+                    // 테이블 행 추가
+                    const row = tableBody.insertRow();
+                    row.insertCell(0).textContent = parsedValue.name;
+                    row.insertCell(1).textContent = parsedValue.lastvalue;
+                    row.insertCell(2).textContent = parsedValue.meanvalue;
+                    row.insertCell(3).textContent = parsedValue.minvalue;
+                    row.insertCell(4).textContent = parsedValue.maxvalue;
+                    row.insertCell(5).textContent = parsedValue.unit;
+                    
+                    const timeCell = row.insertCell(6);
+                    updateTimeInfo(timeCell, parsedValue.time);
+                    
+                    // 데이터 카드 추가
+                    const card = document.createElement('div');
+                    card.className = 'data-card';
+                    card.innerHTML = `
+                        <h3>${parsedValue.name}</h3>
+                        <p>현재값: ${parsedValue.lastvalue} ${parsedValue.unit}</p>
+                        <p>평균값: ${parsedValue.meanvalue} ${parsedValue.unit}</p>
+                        <p>최소값: ${parsedValue.minvalue}</p>
+                        <p>최대값: ${parsedValue.maxvalue}</p>
+                        <p>측정 시간: <span class="time-info"></span></p>
+                    `;
+                    dataCards.appendChild(card);
+                    updateTimeInfo(card.querySelector('.time-info'), parsedValue.time);
+                    
+                    lastUpdateTime[parsedValue.name] = parsedValue.time;
+                }
+            }
+        }
+
+        function updateTimeInfo(cell, measurementTime) {
+            function update() {
+                const now = new Date();
+                const measured = new Date(measurementTime);
+                const elapsed = Math.floor((now - measured) / 1000);
+                
+                if (elapsed < 60) {
+                    cell.textContent = `${elapsed}초 전`;
+                } else if (elapsed < 3600) {
+                    const minutes = Math.floor(elapsed / 60);
+                    cell.textContent = `${minutes}분 전`;
+                } else if (elapsed < 86400) {
+                    const hours = Math.floor(elapsed / 3600);
+                    cell.textContent = `${hours}시간 전`;
+                } else {
+                    const days = Math.floor(elapsed / 86400);
+                    cell.textContent = `${days}일 전`;
+                }
+            }
+
+            update();
+            setInterval(update, 1000);
+        }
+
+        function updateRawData(data) {
+            const rawDataTextarea = document.getElementById('rawData');
+            rawDataTextarea.value = JSON.stringify(JSON.parse(data), null, 2);
+        }
+
+        document.getElementById('websocketForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const name = document.getElementById('serverName').value;
+            const address = document.getElementById('serverAddress').value;
+            const port = document.getElementById('serverPort').value;
+            saveServer(name, address, port);
+            this.reset();
+        });
+
+        document.getElementById('backButton').addEventListener('click', function() {
+            if (websocket) {
+                websocket.close();
+            }
+            showPage('configPage');
+        });
+
+        document.getElementById('chartButton').addEventListener('click', function() {
+            alert('차트 기능은 아직 구현되지 않았습니다.');
+        });
+
+        document.getElementById('toggleRawDataBtn').addEventListener('click', function() {
+            const rawDataContainer = document.getElementById('rawDataContainer');
+            const isHidden = rawDataContainer.style.display === 'none' || rawDataContainer.style.display === '';
+            rawDataContainer.style.display = isHidden ? 'block' : 'none';
+            this.textContent = isHidden ? '원본 JSON 데이터 숨기기' : '원본 JSON 데이터 표시';
+        });
+
+        window.addEventListener('load', function() {
+            updateServerList();
+            showPage('configPage');
+            document.getElementById('rawDataContainer').style.display = 'none';
+        });
+    </script>
+</body>
+</html>

@@ -3,199 +3,474 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ESP32 WebSocket 데이터 표시</title>
+    <title>수마트팜 백엽상 대시보드</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/moment@2.29.1/moment.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-moment@1.0.0/dist/chartjs-adapter-moment.min.js"></script>
     <style>
+        :root {
+            --primary-color: #3874e3;
+            --secondary-color: #f5a623;
+            --background-color: #f4f7f9;
+            --text-color: #333;
+            --border-color: #e0e0e0;
+        }
+
+        html, body {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
         body {
-            font-family: Arial, sans-serif;
-            max-width: 1200px;
-            margin: 0 auto;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .page-container {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
             padding: 20px;
         }
-        h1, h2 {
-            color: #333;
+
+        .container {
+            max-width: 1200px;
+            width: 95%;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: white;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+            border-radius: 8px;
+            box-sizing: border-box;
         }
+
+        h1, h2 {
+            color: var(--primary-color);
+            margin-bottom: 20px;
+        }
+
         .page {
             display: none;
         }
+
         #configPage {
             display: block;
+            max-width: 800px;
+            margin: 0 auto;
         }
-        form, #savedServers, #dataContainer, #rawDataContainer {
-            background-color: #f4f4f4;
+
+        #dataPage, #chartPage {
+            width: 100%;
+            max-width: none;
+            margin: 0;
+        }
+
+        form, #savedServers, #dataContainer, #rawDataContainer, #chartControls {
+            background-color: white;
             padding: 20px;
-            border-radius: 5px;
+            border-radius: 8px;
             margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
+
         label {
             display: block;
             margin-bottom: 5px;
+            font-weight: bold;
+            color: var(--primary-color);
         }
-        input[type="text"], input[type="number"] {
-            width: calc(100% - 16px);
-            padding: 8px;
-            margin-bottom: 10px;
-            border: 1px solid #ddd;
+
+        input[type="text"], input[type="number"], select {
+            width: 100%;
+            padding: 4px;
+            margin-bottom: 0;
+            border: 1px solid var(--border-color);
             border-radius: 4px;
+            font-size: 14px;
+            box-sizing: border-box;
         }
+
         button {
-            background-color: #4CAF50;
+            background-color: var(--primary-color);
             color: white;
-            padding: 10px 15px;
+            padding: 10px 10px;
             border: none;
-            border-radius: 4px;
+            border-radius: 5px;
             cursor: pointer;
-            margin-right: 10px;
-            margin-bottom: 10px;
+            font-size: 12px;
+            transition: background-color 0.3s;
         }
+
         button:hover {
-            background-color: #45a049;
+            background-color: #ff001e;
         }
+
+        #settingsTable {
+            display: none;
+        }
+
         #savedServers ul {
             list-style-type: none;
             padding: 0;
         }
+
         #savedServers li {
             display: flex;
             justify-content: space-between;
             align-items: center;
             margin-bottom: 10px;
-            padding: 10px;
-            background-color: #fff;
-            border: 1px solid #ddd;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border: 1px solid var(--border-color);
             border-radius: 4px;
         }
+
         .server-info {
             flex-grow: 1;
         }
+
         .server-buttons {
             display: flex;
         }
+
         .server-buttons button {
-            margin-left: 5px;
+            margin-left: 10px;
         }
-        .connect-button {
-            font-size: 1.2em;
-            padding: 12px 20px;
-        }
-        #dataTable {
+
+        #dataTable, #settingsTable {
             width: 100%;
             border-collapse: collapse;
-            font-size: 14px;
+            margin-bottom: 20px;
+            table-layout: fixed;
         }
-        #dataTable th, #dataTable td {
-            border: 1px solid #ddd;
-            padding: 8px;
+
+        #dataTable th, #dataTable td, #settingsTable th, #settingsTable td {
+            border: 1px solid var(--border-color);
+            padding: 6px;
             text-align: left;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
-        #dataTable th {
-            background-color: #f2f2f2;
+
+        #dataTable th, #settingsTable th {
+            background-color: var(--primary-color);
+            color: white;
         }
-        #backButton, #chartButton, #toggleRawDataBtn {
-            display: block;
-            margin: 20px auto;
-        }
+
+        #dataTable th:nth-child(1), #dataTable td:nth-child(1) { width: 30%; }
+        #dataTable th:nth-child(2), #dataTable td:nth-child(2) { width: 10%; }
+        #dataTable th:nth-child(3), #dataTable td:nth-child(3) { width: 10%; }
+        #dataTable th:nth-child(4), #dataTable td:nth-child(4) { width: 15%; }
+        #dataTable th:nth-child(5), #dataTable td:nth-child(5) { width: 15%; }
+        #dataTable th:nth-child(6), #dataTable td:nth-child(6) { width: 8%; }
+
+        #settingsTable th:nth-child(1), #settingsTable td:nth-child(1) { width: 30%; }
+        #settingsTable th:nth-child(2), #settingsTable td:nth-child(2) { width: 10%; }
+        #settingsTable th:nth-child(3), #settingsTable td:nth-child(3) { width: 15%; }
+        #settingsTable th:nth-child(4), #settingsTable td:nth-child(4) { width: 12.5%; }
+        #settingsTable th:nth-child(5), #settingsTable td:nth-child(5) { width: 12.5%; }
+        #settingsTable th:nth-child(6), #settingsTable td:nth-child(6) { width: 10%; }
+        #settingsTable th:nth-child(7), #settingsTable td:nth-child(7) { width: 10%; }
+
         #rawData {
-            width: 100%;
-            height: 200px;
+            width: 95%;
+            height: 100px;
             font-family: monospace;
-            white-space: pre-wrap;
-            overflow-wrap: break-word;
-        }
-        .data-card {
-            background-color: white;
-            border: 1px solid #ddd;
+            border: 1px solid var(--border-color);
             border-radius: 4px;
             padding: 10px;
-            margin-bottom: 10px;
+            font-size: 14px;
         }
+
         .data-card h3 {
+            color: var(--primary-color);
             margin-top: 0;
         }
-        .data-card p {
-            margin: 5px 0;
+
+        #chartContainer {
+            width: 90%;
+            height: 500px;
+            margin-bottom: 20px;
         }
+
+        .color-box {
+            width: 25px;
+            height: 25px;
+            display: inline-block;
+            cursor: pointer;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            vertical-align: middle;
+        }
+
+        #connectionStatus {
+            font-weight: bold;
+            margin-bottom: 15px;
+            padding: 10px;
+            border-radius: 4px;
+        }
+
+        .connected {
+            background-color: #d4edda;
+            color: #155724;
+        }
+
+        .disconnected {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+
+        .preset-button {
+            margin-right: 5px;
+        }
+
+        .preset-button.active {
+            background-color: #ff001e;
+        }
+
         @media (max-width: 768px) {
-            #dataTable {
-                display: none;
+            .container {
+                margin: 10px;
+                padding: 10px;
+                max-height: 98vh;
             }
-            .data-cards {
-                display: block;
+
+            #connectionStatus {
+                margin-bottom: 5px;
+                padding: 6px;
             }
-        }
-        @media (min-width: 769px) {
-            #dataTable {
-                display: table;
+
+            button {
+                padding: 5px 5px;
+                font-size: 10px;
             }
-            .data-cards {
-                display: none;
+
+            input[type="text"], input[type="number"], select {
+                font-size: 12px;
+                padding: 2px;
             }
-        }
-        #rawDataContainer {
-            display: none;
-            margin-top: 20px;
+
+            #chartContainer {
+                width: 95%;
+                height: 500px;
+            }
+
+            form, #savedServers, #dataContainer, #rawDataContainer, #chartControls {
+                padding: 2px;
+                margin-bottom: 5px;
+                font-size: 12px;
+            }
+
+            #dataTable, #settingsTable {
+                font-size: 11px;
+            }
+
+            #dataTable th, #dataTable td, #settingsTable th, #settingsTable td {
+                padding: 4px 2px;
+            }
+
+            .color-box {
+                width: 20px;
+                height: 20px;
+            }
+
+            #dataTable th:nth-child(1), #dataTable td:nth-child(1) { width: 22.5%; }
+            #dataTable th:nth-child(2), #dataTable td:nth-child(2) { width: 12.5%; }
+            #dataTable th:nth-child(3), #dataTable td:nth-child(3) { width: 10%; }
+            #dataTable th:nth-child(4), #dataTable td:nth-child(4) { width: 12.5%; }
+            #dataTable th:nth-child(5), #dataTable td:nth-child(5) { width: 12.5%; }
+            #dataTable th:nth-child(6), #dataTable td:nth-child(6) { width: 8%; }
         }
     </style>
 </head>
 <body>
-    <div id="configPage" class="page">
-        <h1>WebSocket 서버 설정</h1>
-        
-        <div id="savedServers">
-            <h2>저장된 서버 목록</h2>
-            <ul id="serverList"></ul>
-        </div>
+    <div class="page-container">
+        <div class="container">
+            <div id="configPage" class="page">
+                <h1>수마트팜<br>[Sumart Farm]<br>
+                    백엽상 접속 설정<br>
+                </h1>
+                
+                <div id="savedServers">
+                    <h2>저장된 서버 목록
+                        <button id="showaddserverButton"  style="float: right; margin-left: 10px">서버설정</button>
+                    </h2>
+                    <ul id="serverList"></ul>
+                </div>
 
-        <form id="websocketForm">
-            <h2>새 서버 추가</h2>
-            <label for="serverName">서버 이름:</label>
-            <input type="text" id="serverName" required placeholder="예: 내 서버">
-            
-            <label for="serverAddress">서버 IP 주소:</label>
-            <input type="text" id="serverAddress" required placeholder="예: 192.168.0.27">
-            
-            <label for="serverPort">포트 번호:</label>
-            <input type="number" id="serverPort" required placeholder="예: 80">
-            
-            <button type="submit">저장</button>
-        </form>
-    </div>
+                <form id="websocketForm" style="display: none;">
+                    <h2>새 서버 추가</h2>
+                    <label for="serverName">서버 이름:</label>
+                    <input type="text" id="serverName" required placeholder="예: 내 서버">
+                    
+                    <label for="serverAddress">서버 IP 주소:</label>
+                    <input type="text" id="serverAddress" required placeholder="예: 192.168.0.1 (외부접속시 포트포워딩 설정이 필요합니다.)">
+                    
+                    <label for="serverPort">포트 번호:</label>
+                    <input type="number" id="serverPort" required placeholder="예: 80">
+                    
+                    <button type="submit">저장</button>
+                </form>
+            </div>
 
-    <div id="dataPage" class="page">
-        <h1>실시간 ESP32 데이터</h1>
-        <div id="dataContainer">
-            <table id="dataTable">
-                <thead>
-                    <tr>
-                        <th>데이터 이름</th>
-                        <th>현재값</th>
-                        <th>평균값</th>
-                        <th>최소값</th>
-                        <th>최대값</th>
-                        <th>단위</th>
-                        <th>측정 시간</th>
-                    </tr>
-                </thead>
-                <tbody id="dataTableBody">
-                    <!-- 데이터 행이 여기에 동적으로 추가됩니다 -->
-                </tbody>
-            </table>
-            <div class="data-cards" id="dataCards">
-                <!-- 데이터 카드가 여기에 동적으로 추가됩니다 -->
+            <div id="dataPage" class="page">
+                <h1>실시간 데이터 테이블
+                    <button id="backButton" style="float: right; margin-left: 10px">접속 페이지</button>
+                    <button id="chartButton" style="float: right;">데이터 차트</button>
+                </h1>
+                <div id="connectionStatus" class="disconnected">연결 상태: 연결 끊김</div>
+                <div id="dataContainer">
+                    <table id="dataTable">
+                        <thead>
+                            <tr>
+                                <th>데이터 이름</th>
+                                <th>현재값</th>
+                                <th>평균값</th>
+                                <th>최소값</th>
+                                <th>최대값</th>
+                                <th>측정 시간</th>
+                            </tr>
+                        </thead>
+                        <tbody id="dataTableBody">
+                            <!-- 데이터 행이 여기에 동적으로 추가됩니다 -->
+                        </tbody>
+                    </table>
+                </div>
+
+                <div id="rawDataContainer">
+                    <h2> 원본 데이터
+                    <button id="showJsonButton" style="float: right; margin-right: 5px">보이기/숨기기</button>
+                        </h2>
+                    <textarea id="rawData" style="display: none;" readonly></textarea>
+                </div>
+            </div>
+
+            <div id="chartPage" class="page">
+                <h1>데이터 차트
+                    <button id="backToDataButton" style="float: right;">이전 페이지</button>
+                </h1>
+
+                <div id="chartContainer">
+                    <canvas id="myChart"></canvas>
+                </div>
+                <div id="chartControls">
+                    <h2>차트 설정</h2>
+                    <div id="chartPresets">
+                        <button class="preset-button" data-preset="default" onclick="applyChartPreset('default')">기본 설정</button>
+                        <button class="preset-button" data-preset="preset1" onclick="applyChartPreset('preset1')">프리셋 1</button>
+                        <button class="preset-button" data-preset="preset2" onclick="applyChartPreset('preset2')">프리셋 2</button>
+                        <button class="preset-button" data-preset="preset3" onclick="applyChartPreset('preset3')">프리셋 3</button>
+
+                        <button id="read5dayDataButton" style="float: right; margin-left: 5px">기간(5일)</button>
+                        <button id="read3dayDataButton" style="float: right; margin-left: 5px">기간(3일)</button>
+                        <button id="read1dayDataButton" style="float: right; margin-left: 5px">기간(1일)</button>
+    
+                    </div>
+                    <br>
+                    <button id="showSettingsButton">설정 보기/숨기기</button>
+
+                    <br>
+                    <br>
+
+                    <table id="settingsTable" style="display: none;">
+                        <thead>
+                            <tr>
+                                <th>데이터</th>
+                                <th>색상</th>
+                                <th>Y축 위치</th>
+                                <th>Y축 최소값</th>
+                                <th>Y축 최대값</th>
+                                <th>데이터셋 표시</th>
+                                <th>Y축 표시</th>
+                            </tr>
+                        </thead>
+                        <tbody id="settingsTableBody"></tbody>
+                        <tfoot>
+                            <tr>
+                                <td colspan="7">
+                                    <button id="saveSettingsButton" style="margin-right: 5px">설정저장</button>
+                                    <button id="deleteSettingsButton">설정삭제</button>
+                                </td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                
+                    <br></br>
+                </div>
             </div>
         </div>
-        <button id="toggleRawDataBtn">원본 JSON 데이터 표시</button>
-        <div id="rawDataContainer">
-            <h2>원본 JSON 데이터</h2>
-            <textarea id="rawData" readonly></textarea>
-        </div>
-        <button id="chartButton">차트 보기</button>
-        <button id="backButton">첫 페이지로 돌아가기</button>
     </div>
 
     <script>
         let websocket;
         let savedServers = JSON.parse(localStorage.getItem('savedServers')) || [];
         let lastUpdateTime = {};
+        let chart;
+        let chartData = {
+            datasets: []
+        };
+        let accumulatedChartData = [];
+        let requestStartDate, requestEndDate;
+
+        const CHART_PRESETS = {
+            DEFAULT: 'default',
+            PRESET1: 'preset1',
+            PRESET2: 'preset2',
+            PRESET3: 'preset3'
+        };
+
+        let currentPreset = CHART_PRESETS.DEFAULT;
+
+        // 크로스헤어 플러그인 정의
+        const crosshairPlugin = {
+            id: 'crosshair',
+            defaults: {
+                width: 1,
+                color: 'rgba(0, 0, 0, 0.75)',
+                dash: [3, 3]
+            },
+            afterInit: (chart) => {
+                chart.crosshair = {
+                    x: 0,
+                    y: 0
+                };
+            },
+            afterEvent: (chart, args) => {
+                const { inChartArea } = args;
+                const { x, y } = args.event;
+
+                chart.crosshair = { x, y, draw: inChartArea };
+                chart.draw();
+            },
+            afterDatasetsDraw: (chart, args, options) => {
+                const { ctx, chartArea: { top, bottom, left, right }, scales: { x, y } } = chart;
+
+                if (!chart.crosshair.draw) {
+                    return;
+                }
+
+                const { x: xCoor, y: yCoor } = chart.crosshair;
+
+                ctx.save();
+                ctx.beginPath();
+                ctx.lineWidth = options.width;
+                ctx.strokeStyle = options.color;
+                ctx.setLineDash(options.dash);
+                ctx.moveTo(xCoor, top);
+                ctx.lineTo(xCoor, bottom);
+                ctx.moveTo(left, yCoor);
+                ctx.lineTo(right, yCoor);
+                ctx.stroke();
+                ctx.restore();
+            }
+        };
 
         function showPage(pageId) {
             document.querySelectorAll('.page').forEach(page => page.style.display = 'none');
@@ -250,61 +525,81 @@
             websocket = new WebSocket(url);
 
             websocket.onopen = function() {
+                console.log('WebSocket 연결됨');
                 showPage('dataPage');
+                updateConnectionStatus(true);
+                // WebSocket 연결 성공 이벤트 발생
+                document.dispatchEvent(new Event('websocketConnected'));
             };
 
             websocket.onclose = function() {
-                showPage('configPage');
+                console.log('WebSocket 연결 끊김');
+                updateConnectionStatus(false);
             };
 
             websocket.onerror = function(error) {
                 console.error('WebSocket 오류:', error);
                 alert('연결 중 오류가 발생했습니다.');
+                updateConnectionStatus(false);
             };
 
             websocket.onmessage = function(event) {
                 console.log('서버로부터 메시지 수신:', event.data);
-                const data = JSON.parse(event.data);
-                updateDataTable(data);
-                updateRawData(event.data);
+                try {
+                    const data = JSON.parse(event.data);
+                    switch (data.type) {
+                        case 'chartData':
+                            handleChartData(data);
+                            break;
+                        case 'chartSetting':
+                            if (data.chartinit) {
+                                handleDefaultSettings(data.chartinit);
+                            } else {
+                                console.error('차트 설정 데이터가 없습니다.');
+                            }
+                            break;
+                        default:
+                            updateDataTable(data);
+                            updateRawData(event.data);
+                    }
+                } catch (error) {
+                    console.error('메시지 파싱 오류:', error);
+                }
             };
+        }
+
+        function updateConnectionStatus(isConnected) {
+            const statusElement = document.getElementById('connectionStatus');
+            if (isConnected) {
+                statusElement.textContent = '연결 상태: 연결됨';
+                statusElement.className = 'connected';
+            } else {
+                statusElement.textContent = '연결 상태: 연결 끊김';
+                statusElement.className = 'disconnected';
+            }
         }
 
         function updateDataTable(data) {
             const tableBody = document.getElementById('dataTableBody');
-            const dataCards = document.getElementById('dataCards');
-            tableBody.innerHTML = ''; // 테이블 초기화
-            dataCards.innerHTML = ''; // 카드 초기화
+            tableBody.innerHTML = '';
 
             for (const [key, value] of Object.entries(data)) {
                 if (key.startsWith('value')) {
-                    const parsedValue = JSON.parse(value);
+                    const parsedValue = typeof value === 'string' ? JSON.parse(value) : value;
                     
-                    // 테이블 행 추가
                     const row = tableBody.insertRow();
                     row.insertCell(0).textContent = parsedValue.name;
-                    row.insertCell(1).textContent = parsedValue.lastvalue;
-                    row.insertCell(2).textContent = parsedValue.meanvalue;
+                    
+                    // lastvalue와 unit을 한 셀에 결합
+                    const combinedCell = row.insertCell(1);
+                    combinedCell.textContent = `${parsedValue.lastvalue} ${parsedValue.unit}`;
+                    
+                    row.insertCell(2).textContent = parsedValue.avgvalue;
                     row.insertCell(3).textContent = parsedValue.minvalue;
                     row.insertCell(4).textContent = parsedValue.maxvalue;
-                    row.insertCell(5).textContent = parsedValue.unit;
                     
-                    const timeCell = row.insertCell(6);
+                    const timeCell = row.insertCell(5);
                     updateTimeInfo(timeCell, parsedValue.time);
-                    
-                    // 데이터 카드 추가
-                    const card = document.createElement('div');
-                    card.className = 'data-card';
-                    card.innerHTML = `
-                        <h3>${parsedValue.name}</h3>
-                        <p>현재값: ${parsedValue.lastvalue} ${parsedValue.unit}</p>
-                        <p>평균값: ${parsedValue.meanvalue} ${parsedValue.unit}</p>
-                        <p>최소값: ${parsedValue.minvalue}</p>
-                        <p>최대값: ${parsedValue.maxvalue}</p>
-                        <p>측정 시간: <span class="time-info"></span></p>
-                    `;
-                    dataCards.appendChild(card);
-                    updateTimeInfo(card.querySelector('.time-info'), parsedValue.time);
                     
                     lastUpdateTime[parsedValue.name] = parsedValue.time;
                 }
@@ -340,6 +635,544 @@
             rawDataTextarea.value = JSON.stringify(JSON.parse(data), null, 2);
         }
 
+        function requestChartData(days = 1) {
+            if (websocket && websocket.readyState === WebSocket.OPEN) {
+                const endDate = new Date();
+                const startDate = new Date(endDate);
+                startDate.setDate(endDate.getDate() - days + 1);
+                requestStartDate = startDate.toISOString().split('T')[0];
+                requestEndDate = endDate.toISOString().split('T')[0];
+                const request = {
+                    type: 'requestChartData',
+                    startDate: requestStartDate,
+                    endDate: requestEndDate
+                };
+                accumulatedChartData = [];
+                websocket.send(JSON.stringify(request));
+            } else {
+                console.error('WebSocket is not connected');
+            }
+        }
+
+        function handleChartData(data) {
+            accumulatedChartData.push(data);
+            if (data.date === requestEndDate) {
+                updateChartWithNewData(accumulatedChartData);
+            }
+        }
+
+        function updateChartWithNewData(chartDataArray) {
+            if (!chart || !chart.options) {
+                console.error('Chart is not initialized');
+                return;
+            }
+
+            const newDatasets = [];
+            const timeSeriesData = {};
+
+            chartDataArray.forEach(data => {
+                const contentData = data.content;
+                for (const [key, values] of Object.entries(contentData)) {
+                    if (key.startsWith('value')) {
+                        const datasetInfo = values;
+                        const dataPoints = createDataPoints(datasetInfo.data, data.date);
+                        dataPoints.forEach(point => {
+                            if (!timeSeriesData[point.x]) {
+                                timeSeriesData[point.x] = [];
+                            }
+                            timeSeriesData[point.x].push(point.y);
+                        });
+
+                        let dataset = newDatasets.find(ds => ds.label === datasetInfo.name);
+                        if (!dataset) {
+                            const existingDataset = chart.data.datasets.find(ds => ds.label === datasetInfo.name);
+                            dataset = {
+                                label: datasetInfo.name,
+                                data: [],
+                                unit: datasetInfo.unit,
+                                borderColor: existingDataset ? existingDataset.borderColor : `hsl(${newDatasets.length * 30}, 70%, 50%)`,
+                                backgroundColor: existingDataset ? existingDataset.backgroundColor : `hsl(${newDatasets.length * 30}, 70%, 50%)`,
+                                tension: 0.1,
+                                fill: false,
+                                yAxisID: existingDataset ? existingDataset.yAxisID : `y-axis-${newDatasets.length + 1}`,
+                                spanGaps: true
+                            };
+                            newDatasets.push(dataset);
+                        }
+                    }
+                }
+            });
+
+            Object.entries(timeSeriesData).forEach(([time, values]) => {
+                const allZero = values.every(value => value === 0);
+                newDatasets.forEach((dataset, index) => {
+                    dataset.data.push({
+                        x: new Date(time),
+                        y: allZero ? null : values[index]
+                    });
+                });
+            });
+
+            chart.data.datasets = newDatasets;
+            chart.update();
+            updateSettingsTable();
+        }
+
+        function createDataPoints(dataArray, date) {
+            const startDate = new Date(date + 'T00:00:00');
+            const dataPoints = dataArray.map((data, timeIndex) => {
+                const pointTime = new Date(startDate.getTime() + timeIndex * 10 * 60000);
+                return {
+                    x: pointTime,
+                    y: data
+                };
+            });
+            return dataPoints;
+        }
+
+        function initializeChart() {
+            const ctx = document.getElementById('myChart').getContext('2d');
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: chartData,
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false,
+                    scales: {
+                        x: {
+                            type: 'time',
+                            time: {
+                                unit: 'hour',
+                                displayFormats: {
+                                    hour: 'HH:mm'
+                                },
+                                tooltipFormat: 'YYYY-MM-DD HH:mm'
+                            },
+                            title: {
+                                display: true,
+                                text: '시간'
+                            },
+                            ticks: {
+                                maxRotation: 0,
+                                autoSkip: true,
+                                maxTicksLimit: 24
+                            }
+                        }
+                    },
+                    plugins: {
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false
+                        },
+                        legend: {
+                            position: 'top',
+                            onClick: toggleDataset
+                        },
+                        crosshair: true
+                    },
+                    elements: {
+                        line: {
+                            borderWidth: 2,
+                            spanGaps: true
+                        },
+                        point: {
+                            radius: 0,
+                            hoverRadius: 10
+                        }
+                    },
+                    devicePixelRatio: 2,
+                    transitions: {
+                        active: {
+                            animation: {
+                                duration: 0
+                            }
+                        }
+                    }
+                },
+                plugins: [crosshairPlugin]
+            });
+
+            loadChartSettings();
+            updateSettingsTable();
+        }
+
+        function toggleDataset(evt, item, legend) {
+            const chart = legend.chart;
+            const index = item.datasetIndex;
+            
+            if (chart.isDatasetVisible(index)) {
+                chart.data.datasets.forEach((dataset, i) => {
+                    chart.hide(i);
+                    hideYAxis(chart, dataset.yAxisID);
+                });
+                chart.show(index);
+                showYAxis(chart, chart.data.datasets[index].yAxisID);
+            
+        } else {
+                chart.data.datasets.forEach((dataset, i) => {
+                    chart.show(i);
+                    showYAxis(chart, dataset.yAxisID);
+                });
+            }
+            chart.update('none');
+        }
+
+        function hideYAxis(chart, axisID) {
+            const scaleOptions = chart.options.scales[axisID];
+            if (scaleOptions) {
+                scaleOptions.display = false;
+            }
+        }
+
+        function showYAxis(chart, axisID) {
+            const scaleOptions = chart.options.scales[axisID];
+            if (scaleOptions) {
+                scaleOptions.display = true;
+            }
+        }
+
+        function updateChartScales() {
+            chart.options.scales = {
+                x: chart.options.scales.x
+            };
+
+            chartData.datasets.forEach((dataset, index) => {
+                const yAxisID = `y-axis-${index + 1}`;
+                chart.options.scales[yAxisID] = {
+                    type: 'linear',
+                    display: true,
+                    position: index % 2 === 0 ? 'left' : 'right',
+                    title: {
+                        display: true,
+                        text: dataset.unit
+                    }
+                };
+            });
+        }
+
+        function updateSettingsTable() {
+            const tableBody = document.getElementById('settingsTableBody');
+            tableBody.innerHTML = '';
+
+            chartData.datasets.forEach((dataset, index) => {
+                const row = tableBody.insertRow();
+
+                // 데이터셋 이름
+                const nameCell = row.insertCell();
+                nameCell.textContent = dataset.label;
+
+                // 색상 선택
+                const colorCell = row.insertCell();
+                const colorBox = document.createElement('div');
+                colorBox.className = 'color-box';
+                colorBox.style.backgroundColor = dataset.borderColor;
+                colorBox.onclick = function() {
+                    if (currentPreset !== CHART_PRESETS.DEFAULT) {
+                        const colorPicker = document.createElement('input');
+                        colorPicker.type = 'color';
+                        colorPicker.value = dataset.borderColor;
+                        colorPicker.onchange = function() {
+                            dataset.borderColor = this.value;
+                            dataset.backgroundColor = this.value;
+                            colorBox.style.backgroundColor = this.value;
+                            chart.update();
+                        };
+                        colorPicker.click();
+                    }
+                };
+                colorCell.appendChild(colorBox);
+
+                // Y축 위치 선택
+                const axisPositionCell = row.insertCell();
+                const positionSelect = document.createElement('select');
+                positionSelect.innerHTML = '<option value="left">왼쪽</option><option value="right">오른쪽</option>';
+                positionSelect.value = chart.options.scales[dataset.yAxisID].position;
+                positionSelect.onchange = function() {
+                    if (currentPreset !== CHART_PRESETS.DEFAULT) {
+                        chart.options.scales[dataset.yAxisID].position = this.value;
+                        chart.update();
+                    }
+                };
+                axisPositionCell.appendChild(positionSelect);
+
+                // Y축 최소값
+                const minCell = row.insertCell();
+                const minInput = document.createElement('input');
+                minInput.type = 'number';
+                minInput.value = chart.options.scales[dataset.yAxisID].min !== undefined ? chart.options.scales[dataset.yAxisID].min : '';
+                minInput.onchange = function() {
+                    if (currentPreset !== CHART_PRESETS.DEFAULT) {
+                        const value = this.value === '' ? undefined : Number(this.value);
+                        chart.options.scales[dataset.yAxisID].min = value;
+                        chart.update();
+                    }
+                };
+                minCell.appendChild(minInput);
+
+                // Y축 최대값
+                const maxCell = row.insertCell();
+                const maxInput = document.createElement('input');
+                maxInput.type = 'number';
+                maxInput.value = chart.options.scales[dataset.yAxisID].max !== undefined ? chart.options.scales[dataset.yAxisID].max : '';
+                maxInput.onchange = function() {
+                    if (currentPreset !== CHART_PRESETS.DEFAULT) {
+                        const value = this.value === '' ? undefined : Number(this.value);
+                        chart.options.scales[dataset.yAxisID].max = value;
+                        chart.update();
+                    }
+                };
+                maxCell.appendChild(maxInput);
+
+                // 데이터셋 표시 여부
+                const datasetVisibilityCell = row.insertCell();
+                const datasetVisibilityCheckbox = document.createElement('input');
+                datasetVisibilityCheckbox.type = 'checkbox';
+                datasetVisibilityCheckbox.checked = !chart.getDatasetMeta(index).hidden;
+                datasetVisibilityCheckbox.onchange = function() {
+                    if (currentPreset !== CHART_PRESETS.DEFAULT) {
+                        const isVisible = this.checked;
+                        chart.getDatasetMeta(index).hidden = !isVisible;
+                        axisVisibilityCheckbox.checked = isVisible;
+                        axisVisibilityCheckbox.disabled = !isVisible;
+                        chart.options.scales[dataset.yAxisID].display = isVisible && axisVisibilityCheckbox.checked;
+                        chart.update();
+                    }
+                };
+                datasetVisibilityCell.appendChild(datasetVisibilityCheckbox);
+
+                // Y축 표시 여부
+                const axisVisibilityCell = row.insertCell();
+                const axisVisibilityCheckbox = document.createElement('input');
+                axisVisibilityCheckbox.type = 'checkbox';
+                axisVisibilityCheckbox.checked = chart.options.scales[dataset.yAxisID].display;
+                axisVisibilityCheckbox.disabled = !datasetVisibilityCheckbox.checked;
+                axisVisibilityCheckbox.onchange = function() {
+                    if (currentPreset !== CHART_PRESETS.DEFAULT && datasetVisibilityCheckbox.checked) {
+                        chart.options.scales[dataset.yAxisID].display = this.checked;
+                        chart.update();
+                    }
+                };
+                axisVisibilityCell.appendChild(axisVisibilityCheckbox);
+
+                // 현재 프리셋에 따라 설정 변경 가능 여부 조정
+                const inputs = row.querySelectorAll('input, select');
+                inputs.forEach(input => {
+                    input.disabled = (currentPreset === CHART_PRESETS.DEFAULT);
+                });
+            });
+        }
+
+        function applyChartPreset(preset) {
+            currentPreset = preset;
+            const presetSettings = loadPresetSettings(preset);
+            if (presetSettings) {
+                applyChartSettings(presetSettings);
+            } else if (preset === CHART_PRESETS.DEFAULT) {
+                fetchDefaultSettings(); // 기본 설정이 없으면 서버에 요청
+            } else {
+                console.error('프리셋 설정을 찾을 수 없습니다.');
+            }
+            updatePresetButtonStyles();
+            updateSettingsTable(); // 프리셋 변경 후 설정 테이블 업데이트
+        }
+
+        function loadPresetSettings(preset) {
+            const savedSettings = localStorage.getItem(`chartSettings_${preset}`);
+            if (savedSettings) {
+                try {
+                    return JSON.parse(savedSettings);
+                } catch (error) {
+                    console.error('프리셋 설정 파싱 오류:', error);
+                    return null;
+                }
+            }
+            return null;
+        }
+
+        function saveChartSettings() {
+            if (currentPreset !== CHART_PRESETS.DEFAULT) {
+                const settings = chart.data.datasets.map(dataset => ({
+                    name: dataset.label,
+                    settings: JSON.stringify({
+                        yAxisID: dataset.yAxisID,
+                        borderColor: dataset.borderColor,
+                        backgroundColor: dataset.backgroundColor,
+                        unit: dataset.unit,
+                        position: chart.options.scales[dataset.yAxisID].position,
+                        visible: chart.options.scales[dataset.yAxisID].display.toString(),
+                        yMin: chart.options.scales[dataset.yAxisID].min,
+                        yMax: chart.options.scales[dataset.yAxisID].max,
+                        datasetVisible: !chart.getDatasetMeta(chart.data.datasets.indexOf(dataset)).hidden
+                    })
+                }));
+
+                localStorage.setItem(`chartSettings_${currentPreset}`, JSON.stringify(settings));
+                alert('차트 설정이 저장되었습니다.');
+            } else {
+                alert('기본 설정은 수정할 수 없습니다.');
+            }
+        }
+
+        function updatePresetButtonStyles() {
+            const presetButtons = document.querySelectorAll('.preset-button');
+            presetButtons.forEach(button => {
+                if (button.dataset.preset === currentPreset) {
+                    button.classList.add('active');
+                } else {
+                    button.classList.remove('active');
+                }
+            });
+        }
+
+        function applyChartSettings(chartinit) {
+            if (!chart || !chart.options) {
+                console.error('Chart is not initialized');
+                return;
+            }
+            
+            // 기존 Y축 설정을 모두 제거
+            Object.keys(chart.options.scales).forEach(key => {
+                if (key !== 'x') {
+                    delete chart.options.scales[key];
+                }
+            });
+
+            // X축 설정 유지
+            const newScales = {
+                x: chart.options.scales.x
+            };
+
+            // chartinit가 배열인지 확인
+            if (Array.isArray(chartinit)) {
+                chartinit.forEach((item, index) => {
+                    const name = item.name;
+                    let settings;
+                    try {
+                        settings = JSON.parse(item.settings);
+                    } catch (error) {
+                        console.error(`설정 파싱 오류 (${name}):`, error);
+                        return; // 이 항목을 건너뛰고 다음으로 진행
+                    }
+                    
+                    // 기존 데이터셋 찾기
+                    let dataset = chart.data.datasets.find(ds => ds.label === name);
+                    
+                    if (!dataset) {
+                        // 새 데이터셋 생성
+                        dataset = {
+                            label: name,
+                            data: [], // 새 데이터셋의 경우 빈 데이터 배열로 초기화
+                        };
+                        chart.data.datasets.push(dataset);
+                    }
+                    
+                    // 데이터셋 설정 업데이트
+                    dataset.borderColor = settings.borderColor;
+                    dataset.backgroundColor = settings.backgroundColor;
+                    dataset.yAxisID = settings.yAxisID;
+                    dataset.unit = settings.unit;
+
+                    // 데이터셋 표시 여부 설정
+                    const datasetVisible = settings.datasetVisible !== undefined ? settings.datasetVisible : true;
+                    chart.getDatasetMeta(index).hidden = !datasetVisible;
+
+                    // Y축 설정 추가
+                    newScales[settings.yAxisID] = {
+                        type: 'linear',
+                        display: datasetVisible && settings.visible === "true",
+                        position: settings.position,
+                        title: {
+                            display: true,
+                            text: settings.unit
+                        },
+                        min: parseFloat(settings.yMin),
+                        max: parseFloat(settings.yMax)
+                    };
+                });
+            } else {
+                console.error('chartinit is not an array:', chartinit);
+                return;
+            }
+
+            // 새로운 축 설정 적용
+            chart.options.scales = newScales;
+
+            // 차트 업데이트
+            chart.update();
+
+            // 설정 테이블 업데이트
+            updateSettingsTable();
+        }
+
+        function deleteChartSettings() {
+            if (confirm("현재 선택된 프리셋의 차트 설정을 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.")) {
+                localStorage.removeItem(`chartSettings_${currentPreset}`);
+                alert("선택된 프리셋의 차트 설정이 삭제되었습니다. 기본 설정이 적용됩니다.");
+                
+                fetchDefaultSettings();
+            }
+        }
+
+        function fetchDefaultSettings() {
+            if (websocket && websocket.readyState === WebSocket.OPEN) {
+                const request = {
+                    type: 'requestChartinit'
+                };
+                websocket.send(JSON.stringify(request));
+            } else {
+                console.error('WebSocket is not connected');
+            }
+        }
+
+        function handleDefaultSettings(chartinit) {
+            const defaultSettings = chartinit.map(item => {
+                const [name, settingsString] = Object.entries(item)[0];
+                const settings = JSON.parse(settingsString);
+                return {
+                    name: name,
+                    settings: JSON.stringify({
+                        yAxisID: settings.yAxisID,
+                        borderColor: settings.color,
+                        backgroundColor: settings.color,
+                        unit: settings.unit,
+                        position: settings.position,
+                        visible: settings.visible,
+                        yMin: settings.yMin,
+                        yMax: settings.yMax
+                    })
+                };
+            });
+
+            localStorage.setItem(`chartSettings_${CHART_PRESETS.DEFAULT}`, JSON.stringify(defaultSettings));
+            console.log('기본 설정이 저장되었습니다.');
+
+            // 현재 프리셋이 기본 설정이면 차트에 적용
+            if (currentPreset === CHART_PRESETS.DEFAULT) {
+                applyChartSettings(defaultSettings);
+            }
+        }
+
+        function loadChartSettings() {
+            const savedSettings = loadPresetSettings(currentPreset);
+            if (savedSettings) {
+                applyChartSettings(savedSettings);
+            } else {
+                fetchDefaultSettings(); // 서버에서 기본 설정 요청
+            }
+        }
+
+        window.addEventListener('load', function() {
+            initializeChart();  // 차트를 페이지가 로드된 후에 초기화
+            updateServerList();
+            showPage('configPage');
+            
+            // WebSocket 연결이 성공적으로 이루어진 후 기본 설정을 요청
+            document.addEventListener('websocketConnected', function() {
+                fetchDefaultSettings();
+            });
+        });
+
         document.getElementById('websocketForm').addEventListener('submit', function(e) {
             e.preventDefault();
             const name = document.getElementById('serverName').value;
@@ -357,21 +1190,46 @@
         });
 
         document.getElementById('chartButton').addEventListener('click', function() {
-            alert('차트 기능은 아직 구현되지 않았습니다.');
+            showPage('chartPage');
+            requestChartData(1);
+            applyChartPreset(CHART_PRESETS.DEFAULT);
         });
 
-        document.getElementById('toggleRawDataBtn').addEventListener('click', function() {
-            const rawDataContainer = document.getElementById('rawDataContainer');
-            const isHidden = rawDataContainer.style.display === 'none' || rawDataContainer.style.display === '';
-            rawDataContainer.style.display = isHidden ? 'block' : 'none';
-            this.textContent = isHidden ? '원본 JSON 데이터 숨기기' : '원본 JSON 데이터 표시';
+        document.getElementById('backToDataButton').addEventListener('click', function() {
+            showPage('dataPage');
         });
 
-        window.addEventListener('load', function() {
-            updateServerList();
-            showPage('configPage');
-            document.getElementById('rawDataContainer').style.display = 'none';
+        document.getElementById('saveSettingsButton').addEventListener('click', saveChartSettings);
+
+        document.getElementById('deleteSettingsButton').addEventListener('click', deleteChartSettings);
+
+        document.getElementById('showaddserverButton').addEventListener('click', function() {
+            const websocketForm = document.getElementById('websocketForm');
+            websocketForm.style.display = websocketForm.style.display === 'none' ? 'block' : 'none';
         });
+
+        document.getElementById('showSettingsButton').addEventListener('click', function() {
+            const settingsTable = document.getElementById('settingsTable');
+            settingsTable.style.display = settingsTable.style.display === 'none' ? 'table' : 'none';
+        });
+
+        document.getElementById('showJsonButton').addEventListener('click', function() {
+            const rawData = document.getElementById('rawData');
+            rawData.style.display = rawData.style.display === 'none' ? 'block' : 'none';
+        });
+
+        document.getElementById('read1dayDataButton').addEventListener('click', function() {
+            requestChartData(1);
+        });
+
+        document.getElementById('read3dayDataButton').addEventListener('click', function() {
+            requestChartData(3);
+        });
+
+        document.getElementById('read5dayDataButton').addEventListener('click', function() {
+            requestChartData(5);
+        });
+
     </script>
 </body>
 </html>
